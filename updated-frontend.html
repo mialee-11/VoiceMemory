@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>集成式音频模拟系统（本地Whisper版）</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --info: #4895ef;
+            --warning: #f72585;
+            --light-bg: #f8f9fa;
+            --dark-text: #212529;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--dark-text);
+            background-color: var(--light-bg);
+            background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.2rem;
+        }
+        
+        .workflow-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        
+        .workflow-container::before {
+            content: "";
+            position: absolute;
+            top: 50px;
+            left: 150px;
+            right: 150px;
+            height: 4px;
+            background-color: var(--info);
+            z-index: 0;
+        }
+        
+        .step {
+            width: 100px;
+            text-align: center;
+            z-index: 1;
+        }
+        
+        .step-number {
+            width: 50px;
+            height: 50px;
+            line-height: 50px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: white;
+            font-weight: bold;
+            margin: 0 auto 10px;
+            box-shadow: var(--box-shadow);
+        }
+        
+        .active .step-number {
+            background-color: var(--warning);
+            transform: scale(1.1);
+        }
+        
+        .step-name {
+            font-size: 0.9rem;
+            color: var(--secondary);
+            font-weight: 600;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: var(--border-radius);
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+            position: relative;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h2 {
+            color: var(--primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .card h2 .icon {
+            margin-right: 10px;
+            color: var(--warning);
+        }
+        
+        .card-content {
+            margin-bottom: 20px;
+        }
+        
+        .instruction {
+            background-color: #f8f9fa;
+            border-left: 4px solid var(--info);
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .instruction h3 {
+            color: var(--secondary);
+            margin-bottom: 10px;
+        }
+        
+        .instruction ol, .instruction ul {
+            margin-left: 20px;
+        }
+        
+        .instruction li {
+            margin-bottom: 8px;
+        }
+        
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            display: inline-block;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: var(--transition);
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-outline {
+            background-color: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn:hover {
+            background-color: var(--secondary);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn-outline:hover {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .section-upload, .section-analyze, .section-clone, .section-feedback {
+            display: none;
+        }
+        
+        .section-upload.active, .section-analyze.active, .section-clone.active, .section-feedback.active {
+            display: block;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            cursor: pointer;
+        }
+        
+        .file-input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 25px;
+            background-color: var(--info);
+            color: white;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        
+        .file-input-wrapper:hover .file-input-label {
+            background-color: var(--primary);
+        }
+        
+        .file-info {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .prompt-box {
+            background-color: #f0f7ff;
+            border: 1px solid #cce5ff;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .prompt-box h3 {
+            color: var(--info);
+            margin-bottom: 10px;
+        }
+        
+        .prompt-text {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background-color: white;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .copy-btn {
+            background-color: var(--info);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-top: 10px;
+        }
+        
+        .copy-btn:hover {
+            background-color: var(--primary);
+        }
+        
+        .feedback-form {
+            margin-top: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .rating {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .rating-item {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 2px solid #dee2e6;
+            cursor: pointer;
+            font-weight: bold;
+            transition: var(--transition);
+        }
+        
+        .rating-item:hover, .rating-item.selected {
+            background-color: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #dee2e6;
+            border-radius: var(--border-radius);
+            resize: vertical;
+            min-height: 100px;
+            font-family: inherit;
+        }
+        
+        .success-message {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .success-message h3 {
+            color: var(--success);
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+        }
+        
+        .success-message p {
+            margin-bottom: 20px;
+        }
+        
+        .progress-container {
+            background-color: #f1f3f5;
+            border-radius: 10px;
+            margin: 20px 0;
+            height: 15px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--info) 0%, var(--warning) 100%);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+        
+        /* 本地Whisper相关 */
+        .whisper-local {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4f8;
+            border-radius: var(--border-radius);
+            border-left: 4px solid var(--success);
+        }
+        
+        .server-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status-online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .transcription-result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: var(--border-radius);
+            border: 1px solid #dee2e6;
+        }
+        
+        .transcription-text {
+            white-space: pre-wrap;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .workflow-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+            
+            .workflow-container::before {
+                display: none;
+            }
+            
+            .btn-container {
+                flex-direction: column;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>集成式音频模拟系统</h1>
+            <p class="subtitle">上传音频 → 分析特征 → 生成新文本 → 克隆声音 → 提供反馈</p>
+        </header>
+        
+        <div class="workflow-container">
+            <div class="step step-1 active">
+                <div class="step-number">1</div>
+                <div class="step-name">上传音频</div>
+            </div>
+            <div class="step step-2">
+                <div class="step-number">2</div>
+                <div class="step-name">分析特征</div>
+            </div>
+            <div class="step step-3">
+                <div class="step-number">3</div>
+                <div class="step-name">克隆声音</div>
+            </div>
+            <div class="step step-4">
+                <div class="step-number">4</div>
+                <div class="step-name">提供反馈</div>
+            </div>
+        </div>
+        
+        <!-- 步骤1：上传音频 -->
+        <div class="card section-upload active" id="section-upload">
+            <h2><span class="icon">🎤</span> 步骤1：上传音频</h2>
+            
+            <div class="card-content">
+                <div class="instruction">
+                    <h3>操作说明：</h3>
+                    <ol>
+                        <li>准备一段代表性的音频文件（最好是清晰的人声）</li>
+                        <li>选择要上传的音频文件（支持mp3、wav、m4a等格式）</li>
+                        <li>点击"使用本地Whisper转录"按钮进行音频转录</li>
+                    </ol>
+                </div>
+                
+                <div class="whisper-local">
+                    <h3>本地Whisper服务
+                        <span class="server-status status-offline" id="server-status">未连接</span>
+                    </h3>
+                    <p>系统将使用您本地运行的Whisper服务转录音频。</p>
+                    <button class="btn" id="check-server-btn">检查服务状态</button>
+                </div>
+                
+                <div class="file-input-wrapper">
+                    <label class="file-input-label">选择音频文件</label>
+                    <input type="file" class="file-input" id="audio-file" accept="audio/*">
+                </div>
+                
+                <div class="file-info" id="file-info">未选择文件</div>
+                
+                <div class="transcription-result hidden" id="transcription-result">
+                    <h3>转录结果：</h3>
+                    <div class="transcription-text" id="transcription-text"></div>
+                </div>
+            </div>
+            
+            <div class="btn-container">
+                <button class="btn" id="transcribe-btn" disabled>使用本地Whisper转录</button>
+                <button class="btn btn-outline hidden" id="next-analyze-btn">下一步：分析特征</button>
+            </div>
+        </div>
+        
+        <!-- 步骤2：分析特征 -->
+        <div class="card section-analyze" id="section-analyze">
+            <h2><span class="icon">🧠</span> 步骤2：分析特征与生成新文本</h2>
+            
+            <div class="card-content">
+                <div class="instruction">
+                    <h3>操作说明：</h3>
+                    <ol>
+                        <li>点击"前往ChatGPT"按钮，跳转到ChatGPT页面</li>
+                        <li>在ChatGPT中粘贴下方提供的提示词</li>
+                        <li>ChatGPT将分析转录文本并生成新文本</li>
+                        <li>将ChatGPT生成的新文本保存下来用于下一步</li>
+                        <li>回到本页面，继续下一步</li>
+                    </ol>
+                </div>
+                
+                <div class="prompt-box">
+                    <h3>提示词模板：</h3>
+                    <div class="prompt-text" id="prompt-template">请分析以下音频转录文本，提取说话者的性格特征、说话语气语调、情绪和说话习惯。
+
+然后，根据这些特征，请你生成一段新的文本（约100-200字），确保完全符合该人物的语言风格和特点。
+
+转录文本：
+</div>
+                    <button class="copy-btn" id="copy-prompt-btn">复制提示词</button>
+                </div>
+            </div>
+            
+            <div class="btn-container">
+                <a href="https://chat.openai.com/" target="_blank" class="btn" id="goto-chatgpt-btn">前往ChatGPT</a>
+                <button class="btn btn-outline" id="back-upload-btn">返回上一步</button>
+                <button class="btn btn-outline" id="next-clone-btn">下一步：克隆声音</button>
+            </div>
+        </div>
+        
+        <!-- 步骤3：克隆声音 -->
+        <div class="card section-clone" id="section-clone">
+            <h2><span class="icon">🔊</span> 步骤3：声音克隆</h2>
+            
+            <div class="card-content">
+                <div class="instruction">
+                    <h3>操作说明：</h3>
+                    <ol>
+                        <li>点击"前往声音克隆网站"按钮，跳转到Viitor声音克隆页面</li>
+                        <li>在克隆网站上传您原始的音频文件</li>
+                        <li>等待声音克隆完成</li>
+                        <li>将ChatGPT生成的新文本输入到文本框中</li>
+                        <li>生成新的音频并下载</li>
+                        <li>回到本页面，继续下一步</li>
+                    </ol>
+                </div>
+            </div>
+            
+            <div class="btn-container">
+                <a href="https://www.viitor.com/zh/workbench/text-to-speech?id=102090&type=PERSONAL" target="_blank" class="btn" id="goto-clone-btn">前往声音克隆网站</a>
+                <button class="btn btn-outline" id="back-analyze-btn">返回上一步</button>
+                <button class="btn btn-outline" id="next-feedback-btn">下一步：提供反馈</button>
+            </div>
+        </div>
+        
+        <!-- 步骤4：提供反馈 -->
+        <div class="card section-feedback" id="section-feedback">
+            <h2><span class="icon">📝</span> 步骤4：提供反馈</h2>
+            
+            <div class="card-content">
+                <div class="instruction">
+                    <h3>请对生成的音频效果进行评价：</h3>
+                    <p>您的反馈将帮助我们改进系统。请根据您的实际体验填写以下表单。</p>
+                </div>
+                
+                <div class="feedback-form" id="feedback-form">
+                    <div class="form-group">
+                        <label>音色符合程度（1分-很差，5分-非常符合）：</label>
+                        <div class="rating" id="similarity-rating">
+                            <div class="rating-item" data-value="1">1</div>
+                            <div class="rating-item" data-value="2">2</div>
+                            <div class="rating-item" data-value="3">3</div>
+                            <div class="rating-item" data-value="4">4</div>
+                            <div class="rating-item" data-value="5">5</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>生成音频的喜爱程度（1分-很不喜欢，5分-非常喜欢）：</label>
+                        <div class="rating" id="satisfaction-rating">
+                            <div class="rating-item" data-value="1">1</div>
+                            <div class="rating-item" data-value="2">2</div>
+                            <div class="rating-item" data-value="3">3</div>
+                            <div class="rating-item" data-value="4">4</div>
+                            <div class="rating-item" data-value="5">5</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="improvement">改进建议：</label>
+                        <textarea id="improvement" placeholder="请输入您对系统的改进建议..."></textarea>
+                    </div>
+                    
+                    <div class="btn-container">
+                        <button class="btn" id="submit-feedback-btn">提交反馈</button>
+                        <button class="btn btn-outline" id="back-clone-btn">返回上一步</button>
+                    </div>
+                </div>
+                
+                <div class="success-message hidden" id="success-message">
+                    <h3>🎉 感谢您的反馈！</h3>
+                    <p>您的意见对我们非常重要，我们将根据您的建议持续改进系统。</p>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                    <button class="btn" id="restart-btn">重新开始</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量和DOM元素
+        const audioFileInput = document.getElementById('audio-file');
+        const fileInfo = document.getElementById('file-info');
+        const copyPromptBtn = document.getElementById('copy-prompt-btn');
+        const similarityRating = document.getElementById('similarity-rating');
+        const satisfactionRating = document.getElementById('satisfaction-rating');
+        const submitFeedbackBtn = document.getElementById('submit-feedback-btn');
+        const successMessage = document.getElementById('success-message');
+        const progressBar = document.getElementById('progress-bar');
+        const restartBtn = document.getElementById('restart-btn');
+        const serverStatus = document.getElementById('server-status');
+        const checkServerBtn = document.getElementById('check-server-btn');
+        const transcribeBtn = document.getElementById('transcribe-btn');
+        const transcriptionResult = document.getElementById('transcription-result');
+        const transcriptionText = document.getElementById('transcription-text');
+        const nextAnalyzeBtn = document.getElementById('next-analyze-btn');
+        const promptTemplate = document.getElementById('prompt-template');
+        
+        // 本地Whisper服务URL
+        const WHISPER_SERVER_URL = 'http://localhost:5000';
+        
+        // 存储转录结果
+        let transcribedText = '';
+        
+        // 步骤管理
+        const sections = {
+            upload: document.getElementById('section-upload'),
+            analyze: document.getElementById('section-analyze'),
+            clone: document.getElementById('section-clone'),
+            feedback: document.getElementById('section-feedback')
+        };
+        
+        const steps = {
+            step1: document.querySelector('.step-1'),
+            step2: document.querySelector('.step-2'),
+            step3: document.querySelector('.step-3'),
+            step4: document.querySelector('.step-4')
+        };
+        
+        // 导航按钮
+        const backUploadBtn = document.getElementById('back-upload-btn');
+        const nextCloneBtn = document.getElementById('next-clone-btn');
+        const backAnalyzeBtn = document.getElementById('back-analyze-btn');
+        const nextFeedbackBtn = document.getElementById('next-feedback-btn');
+        const backCloneBtn = document.getElementById('back-clone-btn');
+        
+        // 检查本地Whisper服务状态
+        async function checkServerStatus() {
+            try {
+                serverStatus.textContent = '检查中...';
+                
+                const response = await fetch(`${WHISPER_SERVER_URL}/api/health`, {
+                    method: 'GET'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    serverStatus.textContent = `在线 (${data.model})`;
+                    serverStatus.className = 'server-status status-online';
+                    transcribeBtn.disabled = false;
+                    return true;
+                } else {
+                    throw new Error('服务器响应错误');
+                }
+            } catch (error) {
+                console.error('服务器检查失败:', error);
+                serverStatus.textContent = '离线';
+                serverStatus.className = 'server-status status-offline';
+                transcribeBtn.disabled = true;
+                return false;
+            }
+        }
+        
+        // 文件上传处理
+        audioFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileInfo.textContent = `已选择文件: ${file.name} (${formatFileSize(file.size)})`;
+                // 如果服务在线，启用转录按钮
+                if (serverStatus.textContent.includes('在线')) {
+                    transcribeBtn.disabled = false;
+                }
+            } else {
+                fileInfo.textContent = '未选择文件';
+                transcribeBtn.disabled = true;
+            }
+        });
+        
+        // 转录音频
+        async function transcribeAudio() {
+            const file = audioFileInput.files[0];
+            if (!file) {
+                alert('请先选择一个音频文件');
+                return;
+            }
+            
+            try {
+                // 更新UI
+                transcribeBtn.innerHTML = '<span class="loading-spinner"></span>转录中...';
+                transcribeBtn.disabled = true;
+                
+                // 创建FormData对象
+                const formData = new FormData();
+                formData.append('audio', file);
+                
+                // 发送请求
+                const response = await fetch(`${WHISPER_SERVER_URL}/api/transcribe`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error('转录请求失败');
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 保存转录文本
+                    transcribedText = data.transcription;
+                    
+                    // 显示转录结果
+                    transcriptionText.textContent = transcribedText;
+                    transcriptionResult.classList.remove('hidden');
+                    
+                    // 更新提示词模板
+                    promptTemplate.textContent = promptTemplate.textContent + transcribedText;
+                    
+                    // 显示下一步按钮
+                    nextAnalyzeBtn.classList.remove('hidden');
+                } else {
+                    throw new Error(data.error || '转录失败');
+                }
+            } catch (error) {
+                console.error('转录错误:', error);
+                alert(`转录失败: ${error.message}`);
+            } finally {
+                // 恢复按钮状态
+                transcribeBtn.innerHTML = '使用本地Whisper转录';
+                transcribeBtn.disabled = false;
+            }
+        }
+        
+        // 复制提示词模板
+        copyPromptBtn.addEventListener('click', () => {
+            const promptText = document.getElementById('prompt-template').textContent;
+            navigator.clipboard.writeText(promptText).then(() => {
+                copyPromptBtn.textContent = '已复制!';
+                setTimeout(() => {
+                    copyPromptBtn.textContent = '复制提示词';
+                }, 2000);
+            });
+        });
+        
+        // 评分系统
+        const ratingContainers = document.querySelectorAll('.rating');
+        let selectedSimilarity = 0;
+        let selectedSatisfaction = 0;
+        
+        ratingContainers.forEach(container => {
+            const items = container.querySelectorAll('.rating-item');
+            
+            items.forEach(item => {
+                item.addEventListener('click', () => {
+                    // 取消同级所有选中状态
+                    items.forEach(i => i.classList.remove('selected'));
+                    // 选中当前项
+                    item.classList.add('selected');
+                    
+                    const value = parseInt(item.getAttribute('data-value'));
+                    
+                    if (container.id === 'similarity-rating') {
+                        selectedSimilarity = value;
+                    } else if (container.id === 'satisfaction-rating') {
+                        selectedSatisfaction = value;
+                    }
+                });
+            });
+        });
+        
+        // 提交反馈
+        submitFeedbackBtn.addEventListener('click', () => {
+            const improvement = document.getElementById('improvement').value;
+            
+            if (selectedSimilarity === 0 || selectedSatisfaction === 0) {
+                alert('请为音色符合程度和喜爱程度评分');
+                return;
+            }
+            
+            // 在真实系统中，这里会发送数据到服务器
+            // 但在这个无后端版本中，我们只是保存到localStorage
+            const feedback = {
+                similarity: selectedSimilarity,
+                satisfaction: selectedSatisfaction,
+                improvement: improvement,
+                timestamp: new Date().toISOString()
+            };
+            
+            // 保存到localStorage
+            const feedbacks = JSON.parse(localStorage.getItem('feedbacks') || '[]');
+            feedbacks.push(feedback);
+            localStorage.setItem('feedbacks', JSON.stringify(feedbacks));
+            
+            // 显示成功消息
+            document.getElementById('feedback-form').classList.add('hidden');
+            successMessage.classList.remove('hidden');
+            
+            // 动画进度条
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 1;
+                progressBar.style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    createConfetti();
+                }
+            }, 20);
+        });
+        
+        // 重新开始
+        restartBtn.addEventListener('click', () => {
+            // 重置所有状态
+            resetAllStates();
+            
+            // 切换到第一步
+            showSection('upload');
+        });
+        
+        // 导航功能
+        checkServerBtn.addEventListener('click', checkServerStatus);
+        transcribeBtn.addEventListener('click', transcribeAudio);
+        nextAnalyzeBtn.addEventListener('click', () => showSection('analyze'));
+        backUploadBtn.addEventListener('click', () => showSection('upload'));
+        nextCloneBtn.addEventListener('click', () => showSection('clone'));
+        backAnalyzeBtn.addEventListener('click', () => showSection('analyze'));
+        nextFeedbackBtn.addEventListener('click', () => showSection('feedback'));
+        backCloneBtn.addEventListener('click', () => showSection('clone'));
+        
+        // 功能函数
+        function showSection(sectionName) {
+            // 隐藏所有部分
+            Object.values(sections).forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // 显示请求的部分
+            sections[sectionName].classList.add('active');
+            
+            // 更新步骤指示器
+            Object.values(steps).forEach(step => {
+                step.classList.remove('active');
+            });
+            
+            // 根据部分名称设置活动步骤
+            if (sectionName === 'upload') {
+                steps.step1.classList.add('active');
+            } else if (sectionName === 'analyze') {
+                steps.step2.classList.add('active');
+            } else if (sectionName === 'clone') {
+                steps.step3.classList.add('active');
+            } else if (sectionName === 'feedback') {
+                steps.step4.classList.add('active');
+            }
+        }
+        
+        function resetAllStates() {
+            // 重置文件输入
+            audioFileInput.value = '';
+            fileInfo.textContent = '未选择文件';
+            
+            // 重置转录结果
+            transcribedText = '';
+            transcriptionText.textContent = '';
+            transcriptionResult.classList.add('hidden');
+            nextAnalyzeBtn.classList.add('hidden');
+            
+            // 重置提示词模板
+            promptTemplate.textContent = promptTemplate.textContent.split('转录文本：')[0] + '转录文本：';
+            
+            // 重置评分
+            selectedSimilarity = 0;
+            selectedSatisfaction = 0;
+            document.querySelectorAll('.rating-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // 重置改进建议
+            document.getElementById('improvement').value = '';
+            
+            // 重置反馈表单和成功消息
+            document.getElementById('feedback-form').classList.remove('hidden');
+            successMessage.classList.add('hidden');
+            progressBar.style.width = '0%';
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function createConfetti() {
+            const container = document.querySelector('.success-message');
+            const containerRect = container.getBoundingClientRect();
+            
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                
+                // 随机位置、颜色和延迟
+                const left = Math.random() * containerRect.width;
+                const color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                
+                confetti.style.left = `${left}px`;
+                confetti.style.backgroundColor = color;
+                confetti.style.position = 'absolute';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.borderRadius = '50%';
+                confetti.style.animation = `confetti 5s ease-in-out infinite`;
+                
+                container.appendChild(confetti);
+                
+                // 动画结束后移除
+                setTimeout(() => {
+                    confetti.remove();
+                }, 5000);
+            }
+        }
+        
+        // 页面加载时自动检查服务器状态
+        window.addEventListener('load', () => {
+            checkServerStatus();
+        });
+        
+        // 添加动画关键帧
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes confetti {
+                0% {
+                    transform: translateY(0) rotate(0deg);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(100vh) rotate(720deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
